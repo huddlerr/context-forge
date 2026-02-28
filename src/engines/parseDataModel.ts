@@ -11,8 +11,8 @@ export interface Entity {
 export function parseDataModel(t: string): Entity[] {
   if (!t) return [];
   const e: Entity[] = [];
-  (t.match(/(\w[\w\s]*?)\s*[\(:]([^)]+)[\)]?/g) || []).forEach((p) => {
-    const m = p.match(/(\w[\w\s]*?)\s*[\(:](.+)/);
+  (t.match(/(\w[\w\s]*?)\s*[(:]([^)]+)[)]?/g) || []).forEach((p) => {
+    const m = p.match(/(\w[\w\s]*?)\s*[(:](.+)/);
     if (m) {
       const n = m[1].trim();
       const f: Field[] = m[2]

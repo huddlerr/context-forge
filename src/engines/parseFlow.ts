@@ -6,7 +6,7 @@ export interface FlowStep {
 export function parseFlow(t: string): FlowStep[] {
   if (!t) return [];
   return t
-    .split(/\d+[\.\)]\s*/)
+    .split(/\d+[.)]\s*/)
     .filter(Boolean)
     .map((s, i) => ({
       number: i + 1,
