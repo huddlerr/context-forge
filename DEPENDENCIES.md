@@ -4,7 +4,8 @@
 
 Context Forge is a **client-side React SPA** that scaffolds project configuration files
 by asking users 10 focused questions, auto-detecting tech stacks, and generating
-production-ready output. It has a remarkably minimal external dependency footprint.
+production-ready output. The codebase follows a **modular architecture** with clear
+separation between data, engines, exporters, components, and layouts.
 
 ---
 
@@ -25,12 +26,47 @@ production-ready output. It has a remarkably minimal external dependency footpri
 
 ```
 context-forge/
-├── index.html              ← HTML shell, loads fonts + mounts #root
-├── package.json            ← Deps & scripts (dev | build | preview)
-├── vite.config.js          ← Vite config (react plugin, dist output)
+├── index.html                ← HTML shell, loads fonts + mounts #root
+├── package.json              ← Deps & scripts (dev | build | preview)
+├── vite.config.js            ← Vite config (react plugin, dist output)
 └── src/
-    ├── main.jsx            ← ReactDOM entry point
-    └── App.jsx             ← Entire application (873 lines, ~66 KB)
+    ├── main.jsx              ← ReactDOM entry point
+    ├── App.jsx               ← Root orchestrator (~52 lines)
+    ├── tokens/
+    │   └── index.js          ← Design tokens (colors, fonts, spacing, radii, animations, globalStyles)
+    ├── data/
+    │   ├── questions.js      ← QS[] — 10 question definitions
+    │   ├── stackPatterns.js  ← STACK_PATTERNS{} — framework/tool → npm package mapping
+    │   ├── integrations.js   ← INTEGRATIONS[] — Airtable & Google Sheets config
+    │   └── localStorage.js   ← LS{} — prefixed localStorage get/set/del wrapper
+    ├── engines/
+    │   ├── index.js          ← Barrel re-export for all engines
+    │   ├── detectStack.js    ← detectStack(text) → detected packages + types
+    │   ├── detectAuth.js     ← detectAuth(text) → auth providers + env keys
+    │   ├── detectIntegrations.js ← detectIntegrations(text) → 3rd-party services
+    │   ├── parseDataModel.js ← parseDataModel(text) → entity/field definitions
+    │   ├── parseFlow.js      ← parseFlow(text) → numbered user flow steps
+    │   ├── genFiles.js       ← genFiles(answers) → 10 scaffold files
+    │   └── calcConf.js       ← calcConf(answers) → confidence score 0.0–1.0
+    ├── exporters/
+    │   ├── index.js          ← Barrel re-export for all exporters
+    │   ├── airtable.js       ← exportToAirtable(config, answers, files)
+    │   ├── sheets.js         ← exportToSheets(config, answers, files)
+    │   ├── download.js       ← downloadZip(files) → .txt bundle
+    │   └── clipboard.js      ← copyAll(files) → clipboard
+    ├── hooks/
+    │   └── useIsMobile.js    ← useIsMobile(bp=768) → responsive breakpoint
+    ├── components/
+    │   ├── index.js          ← Barrel re-export for all components
+    │   ├── Ring.jsx          ← SVG confidence circle
+    │   ├── Badges.jsx        ← Detected stack/auth/integration badges
+    │   ├── CodeView.jsx      ← Syntax-highlighted file viewer
+    │   ├── Particles.jsx     ← Celebration particle animation
+    │   ├── SettingsPanel.jsx ← Integration config modal (Airtable + Sheets)
+    │   └── ExportMenu.jsx    ← Export target picker modal
+    └── layouts/
+        ├── Mobile.jsx        ← 3-tab mobile layout (edit/files/graph)
+        └── Desktop.jsx       ← 3-panel desktop layout (sidebar/center/preview)
 ```
 
 ---
@@ -48,111 +84,185 @@ context-forge/
        │
        ▼
  ┌───────────┐       ┌────────────┐       ┌─────────────────────┐
- │  main.jsx │──────▶│  react     │       │  react-dom/client   │
- │  (entry)  │──────▶│  (hooks)   │       │  (createRoot)       │
- └─────┬─────┘       └────────────┘       └─────────────────────┘
+ │  main.jsx  │──────▶│  react     │       │  react-dom/client   │
+ │  (entry)   │──────▶│            │       │  (createRoot)       │
+ └─────┬──────┘       └────────────┘       └─────────────────────┘
        │
        │ import App from './App'
        ▼
- ┌───────────────────────────────────────────────────────────────────┐
- │                         App.jsx (873 lines)                      │
- │                                                                   │
- │  IMPORTS: { useState, useRef, useEffect, useCallback, useMemo }  │
- │           from "react"                                            │
- │                                                                   │
- │  ┌─────────────────────────────────────────────────────────────┐  │
- │  │                    STATIC DATA LAYER                        │  │
- │  │                                                             │  │
- │  │  QS[]              10 question definitions                  │  │
- │  │  STACK_PATTERNS{}   Framework/tool detection patterns       │  │
- │  │  INTEGRATIONS[]    Integration config definitions           │  │
- │  │  LS{}              localStorage get/set/del wrapper         │  │
- │  └─────────────────────────────────────────────────────────────┘  │
- │                          │                                        │
- │                          ▼                                        │
- │  ┌─────────────────────────────────────────────────────────────┐  │
- │  │                  DETECTION ENGINES (pure)                   │  │
- │  │                                                             │  │
- │  │  detectStack(text)         → npm packages + types           │  │
- │  │  detectAuth(text)          → auth methods                   │  │
- │  │  detectIntegrations(text)  → 3rd-party services             │  │
- │  │  parseDataModel(text)      → TypeScript interfaces          │  │
- │  │  parseFlow(text)           → user flow steps                │  │
- │  └─────────────────────────────────────────────────────────────┘  │
- │                     │                  │                           │
- │            ┌────────┘                  └────────┐                 │
- │            ▼                                    ▼                 │
- │  ┌──────────────────┐              ┌──────────────────────┐      │
- │  │   genFiles()     │              │   calcConf()         │      │
- │  │                  │              │                      │      │
- │  │ Calls:           │              │ Calls:               │      │
- │  │  detectStack     │              │  detectStack         │      │
- │  │  detectAuth      │              │  parseDataModel      │      │
- │  │  detectInteg.    │              │  detectAuth          │      │
- │  │  parseDataModel  │              │  detectInteg.        │      │
- │  │  parseFlow       │              │                      │      │
- │  │                  │              │ Returns: 0.0 → 1.0   │      │
- │  │ Returns: 10 files│              └──────────────────────┘      │
- │  └──────────────────┘                                            │
- │            │                                                      │
- │            ▼                                                      │
- │  ┌─────────────────────────────────────────────────────────────┐  │
- │  │                    EXPORT HANDLERS                          │  │
- │  │                                                             │  │
- │  │  copyAll(files)          → Clipboard API                    │  │
- │  │  downloadZip(files)      → Blob/File download               │  │
- │  │  exportToAirtable()  ──────▶ api.airtable.com               │  │
- │  │  exportToSheets()    ──────▶ sheets.googleapis.com          │  │
- │  └─────────────────────────────────────────────────────────────┘  │
- │                                                                   │
- │  ┌─────────────────────────────────────────────────────────────┐  │
- │  │                    UI COMPONENTS                            │  │
- │  │                                                             │  │
- │  │  useIsMobile(bp=768)   Hook: responsive breakpoint          │  │
- │  │  Ring()                SVG confidence circle                │  │
- │  │  Badges()              Detected stack/auth/integrations     │  │
- │  │  CodeView()            Syntax-highlighted file viewer       │  │
- │  │  Particles()           Celebration animation                │  │
- │  │  SettingsPanel()       Airtable + Google Sheets config      │  │
- │  │  ExportMenu()          4 export targets                     │  │
- │  │                                                             │  │
- │  │         ┌──────────────┬──────────────┐                     │  │
- │  │         ▼              ▼              ▼                     │  │
- │  │    ┌─────────┐   ┌──────────┐   ┌─────────┐               │  │
- │  │    │ Mobile  │   │ Desktop  │   │  App()  │               │  │
- │  │    │ (tabs)  │   │ (3-panel)│   │ (root)  │               │  │
- │  │    └─────────┘   └──────────┘   └─────────┘               │  │
- │  └─────────────────────────────────────────────────────────────┘  │
- └───────────────────────────────────────────────────────────────────┘
+ ┌───────────────────────────────────────────────────────────────────────┐
+ │                          App.jsx (orchestrator)                      │
+ │                                                                      │
+ │  IMPORTS:                                                            │
+ │    react ─── useState, useEffect, useMemo, useCallback              │
+ │    tokens ── globalStyles                                            │
+ │    data ──── LS (localStorage)                                       │
+ │    engines ─ genFiles, calcConf                                      │
+ │    hooks ─── useIsMobile                                             │
+ │    components ── Particles, SettingsPanel, ExportMenu                │
+ │    layouts ───── Mobile, Desktop                                     │
+ └───────────────────────────────────────────────────────────────────────┘
+       │
+       │ delegates to
+       ▼
+ ┌──────────┐           ┌──────────┐
+ │  Mobile  │           │ Desktop  │
+ │ (< 768)  │           │ (≥ 768)  │
+ └────┬─────┘           └────┬─────┘
+      │                      │
+      │   both import:       │
+      ├──────────────────────┤
+      │                      │
+      ▼                      ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │  QS (data/questions)  Ring  Badges  CodeView  copyAll   │
+ └─────────────────────────────────────────────────────────┘
 
- BUILD TOOLCHAIN
+
+ DATA LAYER (no imports from other src/ modules)
+ ════════════════════════════════════════════════
+ ┌──────────────────┐  ┌──────────────────────┐
+ │  data/questions   │  │  data/stackPatterns  │
+ │  QS[]             │  │  STACK_PATTERNS{}    │
+ └──────────────────┘  └──────────────────────┘
+ ┌──────────────────┐  ┌──────────────────────┐
+ │  data/integrations│  │  data/localStorage   │
+ │  INTEGRATIONS[]   │  │  LS{}                │
+ └──────────────────┘  └──────────────────────┘
+ ┌──────────────────┐
+ │  tokens/index     │
+ │  colors, fonts,   │
+ │  spacing, radii,  │
+ │  globalStyles     │
+ └──────────────────┘
+
+
+ DETECTION ENGINES (pure functions)
+ ═══════════════════════════════════
+ ┌───────────────────┐     imports     ┌───────────────────┐
+ │  detectStack      │◀──────────────── │  data/stackPatterns│
+ │  (text) → deps    │                 └───────────────────┘
+ └───────────────────┘
+ ┌───────────────────┐
+ │  detectAuth       │  (no imports from src/)
+ │  (text) → auth[]  │
+ └───────────────────┘
+ ┌───────────────────┐
+ │  detectIntegrations│  (no imports from src/)
+ │  (text) → svcs[]   │
+ └───────────────────┘
+ ┌───────────────────┐
+ │  parseDataModel    │  (no imports from src/)
+ │  (text) → entities│
+ └───────────────────┘
+ ┌───────────────────┐
+ │  parseFlow         │  (no imports from src/)
+ │  (text) → steps[] │
+ └───────────────────┘
+
+          ┌────────────────────────────────────┐
+          │                                    │
+          ▼                                    ▼
+ ┌──────────────────┐              ┌──────────────────────┐
+ │   genFiles()     │              │   calcConf()         │
+ │                  │              │                      │
+ │ Imports:         │              │ Imports:             │
+ │  data/questions  │              │  data/questions      │
+ │  detectStack     │              │  detectStack         │
+ │  detectAuth      │              │  detectAuth          │
+ │  detectInteg.    │              │  detectInteg.        │
+ │  parseDataModel  │              │  parseDataModel      │
+ │  parseFlow       │              │                      │
+ │                  │              │ Returns: { overall,  │
+ │ Returns: 10 files│              │   individual, issues}│
+ └──────────────────┘              └──────────────────────┘
+
+
+ EXPORT HANDLERS
  ═══════════════
- ┌────────────────┐       ┌──────────────────────┐
- │  vite.config.js│──────▶│  vite ^6.0.0         │
- │                │──────▶│  @vitejs/plugin-react │
- └────────────────┘       └──────────────────────┘
+ ┌──────────────────┐                    (no src/ imports)
+ │  clipboard.js    │ copyAll(files) ───▶ Clipboard API
+ └──────────────────┘
+ ┌──────────────────┐                    (no src/ imports)
+ │  download.js     │ downloadZip(files) ▶ Blob/URL download
+ └──────────────────┘
+ ┌──────────────────┐
+ │  airtable.js     │ exportToAirtable() ▶ api.airtable.com
+ │  imports: calcConf│
+ └──────────────────┘
+ ┌──────────────────┐
+ │  sheets.js       │ exportToSheets() ──▶ sheets.googleapis.com
+ │  imports: calcConf│
+ └──────────────────┘
 
- EXTERNAL API CALLS (runtime)
- ════════════════════════════
- ┌──────────────────┐     ┌─────────────────────────────────────┐
- │ exportToAirtable │────▶│ POST api.airtable.com/v0/{base}/{t} │
- └──────────────────┘     └─────────────────────────────────────┘
- ┌──────────────────┐     ┌─────────────────────────────────────┐
- │ exportToSheets   │────▶│ POST sheets.googleapis.com/v4/...   │
- └──────────────────┘     └─────────────────────────────────────┘
 
- BROWSER APIs USED
- ═════════════════
- ┌──────────────────────────────────────────────────────────────┐
- │  localStorage   → persist answers & integration configs      │
- │  Clipboard API  → copy generated files                       │
- │  Blob / URL     → download as .txt bundle                    │
- │  fetch()        → Airtable & Google Sheets exports           │
- │  matchMedia()   → responsive breakpoint detection            │
- └──────────────────────────────────────────────────────────────┘
+ UI COMPONENTS
+ ═════════════
+ ┌──────────────────────────────────────────────────────────┐
+ │  Ring        ← (no src/ imports, pure SVG)               │
+ │  Particles   ← (no src/ imports, pure CSS animation)     │
+ │  CodeView    ← (no src/ imports, react only)             │
+ │  Badges      ← data/questions + all 5 detection engines  │
+ │  SettingsPanel ← data/integrations + data/localStorage   │
+ │  ExportMenu  ← all 4 exporters                          │
+ └──────────────────────────────────────────────────────────┘
+```
 
- DATA FLOW
- ═════════
+---
+
+## Per-File Import Map
+
+| File | Imports from `src/` |
+|------|-------------------|
+| `main.jsx` | `App` |
+| `App.jsx` | `tokens/index` `data/localStorage` `engines/{genFiles,calcConf}` `hooks/useIsMobile` `components/{Particles,SettingsPanel,ExportMenu}` `layouts/{Mobile,Desktop}` |
+| `tokens/index.js` | *(none)* |
+| `data/questions.js` | *(none)* |
+| `data/stackPatterns.js` | *(none)* |
+| `data/integrations.js` | *(none)* |
+| `data/localStorage.js` | *(none)* |
+| `engines/detectStack.js` | `data/stackPatterns` |
+| `engines/detectAuth.js` | *(none)* |
+| `engines/detectIntegrations.js` | *(none)* |
+| `engines/parseDataModel.js` | *(none)* |
+| `engines/parseFlow.js` | *(none)* |
+| `engines/genFiles.js` | `data/questions` `engines/{detectStack,detectAuth,detectIntegrations,parseDataModel,parseFlow}` |
+| `engines/calcConf.js` | `data/questions` `engines/{detectStack,detectAuth,detectIntegrations,parseDataModel}` |
+| `exporters/clipboard.js` | *(none)* |
+| `exporters/download.js` | *(none)* |
+| `exporters/airtable.js` | `engines/calcConf` |
+| `exporters/sheets.js` | `engines/calcConf` |
+| `hooks/useIsMobile.js` | *(none — react only)* |
+| `components/Ring.jsx` | *(none — pure SVG)* |
+| `components/Badges.jsx` | `data/questions` `engines/{detectStack,detectAuth,detectIntegrations,parseDataModel,parseFlow}` |
+| `components/CodeView.jsx` | *(none — react only)* |
+| `components/Particles.jsx` | *(none — pure JSX)* |
+| `components/SettingsPanel.jsx` | `data/integrations` `data/localStorage` |
+| `components/ExportMenu.jsx` | `exporters/{airtable,sheets,download,clipboard}` |
+| `layouts/Mobile.jsx` | `data/questions` `exporters/clipboard` `components/{Ring,Badges,CodeView}` |
+| `layouts/Desktop.jsx` | `data/questions` `components/{Ring,Badges,CodeView}` |
+
+---
+
+## Internal Function Dependency Matrix
+
+| Caller ↓ / Callee →    | detectStack | detectAuth | detectInteg. | parseDataModel | parseFlow | calcConf |
+|-------------------------|:-----------:|:----------:|:------------:|:--------------:|:---------:|:--------:|
+| **genFiles()**          |      ✓      |     ✓      |      ✓       |       ✓        |     ✓     |          |
+| **calcConf()**          |      ✓      |     ✓      |      ✓       |       ✓        |           |          |
+| **Badges()**            |      ✓      |     ✓      |      ✓       |       ✓        |     ✓     |          |
+| **exportToAirtable()**  |             |            |              |                |           |    ✓     |
+| **exportToSheets()**    |             |            |              |                |           |    ✓     |
+
+- No circular dependencies detected
+- All detection/parsing functions are **pure** (no side effects)
+- `calcConf` is used by both `App.jsx` (via import) and exporters (for confidence score)
+
+---
+
+## Data Flow
+
+```
  ┌─────────┐    ┌──────────┐    ┌───────────────┐    ┌──────────┐
  │  User   │───▶│ answers  │───▶│  genFiles()   │───▶│ CodeView │
  │  Input  │    │ state[10]│    │  calcConf()   │    │ + Export │
@@ -170,109 +280,57 @@ context-forge/
 
 ---
 
-## Internal Function Dependency Matrix
+## Build Toolchain
 
-| Caller ↓ / Callee →    | detectStack | detectAuth | detectInteg. | parseDataModel | parseFlow |
-|-------------------------|:-----------:|:----------:|:------------:|:--------------:|:---------:|
-| **genFiles()**          |      ✓      |     ✓      |      ✓       |       ✓        |     ✓     |
-| **calcConf()**          |      ✓      |     ✓      |      ✓       |       ✓        |           |
-| **Badges()**            |      ✓      |     ✓      |      ✓       |       ✓        |     ✓     |
-| **exportToAirtable()**  |             |            |              |                |           |
-| **exportToSheets()**    |             |            |              |                |           |
+```
+ ┌────────────────┐       ┌──────────────────────┐
+ │  vite.config.js│──────▶│  vite ^6.0.0         │
+ │                │──────▶│  @vitejs/plugin-react │
+ └────────────────┘       └──────────────────────┘
+```
 
-- No circular dependencies detected
-- All detection/parsing functions are **pure** (no side effects)
+---
+
+## External API Calls (runtime)
+
+```
+ ┌──────────────────┐     ┌─────────────────────────────────────┐
+ │ exportToAirtable │────▶│ POST api.airtable.com/v0/{base}/{t} │
+ └──────────────────┘     └─────────────────────────────────────┘
+ ┌──────────────────┐     ┌─────────────────────────────────────┐
+ │ exportToSheets   │────▶│ POST sheets.googleapis.com/v4/...   │
+ └──────────────────┘     └─────────────────────────────────────┘
+ ┌──────────────────┐     ┌────────────────────────────────────────────────┐
+ │ SettingsPanel    │────▶│ GET api.airtable.com (test connection)         │
+ │ (testConnection) │────▶│ GET sheets.googleapis.com (test connection)    │
+ └──────────────────┘     └────────────────────────────────────────────────┘
+```
+
+---
+
+## Browser APIs Used
+
+```
+ ┌──────────────────────────────────────────────────────────────┐
+ │  localStorage   → persist answers & integration configs      │
+ │  Clipboard API  → copy generated files                       │
+ │  Blob / URL     → download as .txt bundle                    │
+ │  fetch()        → Airtable & Google Sheets exports + tests   │
+ │  addEventListener("resize") → responsive breakpoint          │
+ └──────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Key Architectural Observations
 
-1. **Monolith**: The entire app lives in a single 873-line `App.jsx` file
-2. **Zero runtime deps**: Only React — no routing, state management, or utility libraries
-3. **No tests**: No test framework, no test files
-4. **No TypeScript**: Plain JSX despite generating TypeScript for users
-5. **No CI/CD**: No GitHub Actions, no linting, no formatting config
-6. **No code splitting**: Everything bundled together
-7. **Client-side only**: No backend, no SSR, no database
-
----
-
-## Proposed Next Steps
-
-### High Priority — Code Quality & Maintainability
-
-1. **Decompose App.jsx into modules**
-   Split the monolithic 873-line file into logical modules:
-   ```
-   src/
-   ├── main.jsx
-   ├── App.jsx                  (slim orchestrator)
-   ├── hooks/
-   │   └── useIsMobile.js
-   ├── engines/
-   │   ├── detectStack.js
-   │   ├── detectAuth.js
-   │   ├── detectIntegrations.js
-   │   ├── parseDataModel.js
-   │   ├── parseFlow.js
-   │   ├── genFiles.js
-   │   └── calcConf.js
-   ├── exporters/
-   │   ├── airtable.js
-   │   ├── sheets.js
-   │   ├── download.js
-   │   └── clipboard.js
-   ├── components/
-   │   ├── Ring.jsx
-   │   ├── Badges.jsx
-   │   ├── CodeView.jsx
-   │   ├── Particles.jsx
-   │   ├── SettingsPanel.jsx
-   │   ├── ExportMenu.jsx
-   │   ├── Mobile.jsx
-   │   └── Desktop.jsx
-   └── data/
-       ├── questions.js
-       └── stackPatterns.js
-   ```
-
-2. **Add TypeScript**
-   The app generates TypeScript config and types for users — it should use TypeScript itself.
-   Rename `.jsx` → `.tsx`, add `tsconfig.json`, type all functions.
-
-3. **Add a test framework**
-   The pure detection/parsing engines are ideal candidates for unit testing.
-   Add Vitest (pairs naturally with Vite) and write tests for `detectStack`,
-   `parseDataModel`, `calcConf`, etc.
-
-### Medium Priority — Developer Experience
-
-4. **Add ESLint + Prettier**
-   No linting or formatting is configured. Add `eslint` with
-   `eslint-plugin-react` and `prettier` for consistent code style.
-
-5. **Add CI/CD pipeline**
-   Create a GitHub Actions workflow for lint → type-check → test → build
-   on every PR.
-
-6. **Add error boundaries**
-   The app has no React error boundaries. A single runtime error crashes
-   the entire UI with no recovery path.
-
-### Lower Priority — Features & Performance
-
-7. **Code splitting / lazy loading**
-   Lazy-load `SettingsPanel`, `ExportMenu`, and `Particles` since they're
-   modal/conditional. This reduces initial bundle size.
-
-8. **Accessibility audit**
-   Add ARIA labels, keyboard navigation, focus management, and screen
-   reader support — especially for the tabbed mobile interface.
-
-9. **Offline support / PWA**
-   Since the app is fully client-side, adding a service worker and manifest
-   would let it work offline and be installable.
-
-10. **State management upgrade**
-    If complexity grows, consider `useReducer` or Zustand to replace the
-    current 10+ `useState` calls with a single store.
+1. **Modular design**: 27 source files across 7 directories with clear separation of concerns
+2. **Zero runtime deps beyond React**: No routing, state management, or utility libraries
+3. **Pure engine layer**: All detection/parsing functions are stateless and side-effect-free
+4. **Barrel exports**: `engines/index.js`, `exporters/index.js`, and `components/index.js` provide clean public APIs
+5. **No circular dependencies**: Dependency graph is a clean DAG
+6. **No tests**: No test framework, no test files
+7. **No TypeScript**: Plain JSX despite generating TypeScript for users
+8. **No CI/CD**: No GitHub Actions, no linting, no formatting config
+9. **No code splitting**: Everything bundled together (but modular structure makes it easy to add)
+10. **Client-side only**: No backend, no SSR, no database
