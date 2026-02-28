@@ -22,8 +22,8 @@ function useIsMobile(bp = 768) {
 // ── LOCAL STORAGE ────────────────────────────────────────────
 const LS = {
   get: (k, d) => { try { const v = localStorage.getItem("cf_" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set: (k, v) => { try { localStorage.setItem("cf_" + k, JSON.stringify(v)); } catch {} },
-  del: (k) => { try { localStorage.removeItem("cf_" + k); } catch {} },
+  set: (k, v) => { try { localStorage.setItem("cf_" + k, JSON.stringify(v)); } catch { /* ignore */ } },
+  del: (k) => { try { localStorage.removeItem("cf_" + k); } catch { /* ignore */ } },
 };
 
 // ── STACK DETECTION ENGINE ───────────────────────────────────
@@ -83,8 +83,8 @@ function detectIntegrations(t) {
 function parseDataModel(t) {
   if (!t) return [];
   const e = [];
-  (t.match(/(\w[\w\s]*?)\s*[\(:]([^)]+)[\)]?/g) || []).forEach(p => {
-    const m = p.match(/(\w[\w\s]*?)\s*[\(:](.+)/);
+  (t.match(/(\w[\w\s]*?)\s*[(:]([^)]+)[)]?/g) || []).forEach(p => {
+    const m = p.match(/(\w[\w\s]*?)\s*[(:](.+)/);
     if (m) {
       const n = m[1].trim();
       const f = m[2].replace(/\)$/, "").split(/[,.]/).map(x => x.trim()).filter(Boolean).map(x => {
@@ -99,7 +99,7 @@ function parseDataModel(t) {
 
 function parseFlow(t) {
   if (!t) return [];
-  return t.split(/\d+[\.\)]\s*/).filter(Boolean).map((s, i) => ({
+  return t.split(/\d+[.)]\s*/).filter(Boolean).map((s, i) => ({
     number: i + 1,
     text: s.trim().replace(/→|->|-->/g, "").trim(),
   }));
