@@ -1,0 +1,8 @@
+# .cursorrules
+
+Client-side only. No backend. No external dependencies beyond React. All detection engines must be pure functions. Design tokens must be used instead of hardcoded values. TypeScript strict mode for data and engine layers.
+
+Stack: React 19, Vite 6, TypeScript, Vitest, ESLint
+
+Always: claude.md → design.md → soul.md. TS strict. No any.
+Never: Skip errors. Hardcode keys. Add unplanned features.
