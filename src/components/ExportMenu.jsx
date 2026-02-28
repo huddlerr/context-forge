@@ -19,7 +19,7 @@ export function ExportMenu({ show, onClose, files, answers, integrations, onExpo
       else if (target === "gsheets") { await exportToSheets(integrations.gsheets || {}, answers, files); setStatus(p => ({ ...p, [target]: "done" })); }
       setTimeout(() => setStatus(p => ({ ...p, [target]: null })), 3000);
       if (onExport) onExport(target);
-    } catch (e) {
+    } catch {
       setStatus(p => ({ ...p, [target]: "error" }));
       setTimeout(() => setStatus(p => ({ ...p, [target]: null })), 3000);
     }

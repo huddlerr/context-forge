@@ -29,7 +29,7 @@ export function SettingsPanel({ show, onClose, integrations, setIntegrations }) 
         if (res.ok) setTestResult(prev => ({ ...prev, [intId]: "success" }));
         else throw new Error(`${res.status}`);
       }
-    } catch (e) {
+    } catch {
       setTestResult(prev => ({ ...prev, [intId]: "error" }));
     }
     setTesting(null);

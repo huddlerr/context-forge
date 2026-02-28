@@ -6,7 +6,7 @@ import { Badges } from "../components/Badges";
 import { CodeView } from "../components/CodeView";
 import { colors, fonts, fontSizes, fontWeights, radii, animations } from "../tokens";
 
-export function Mobile({ answers, setAnswers, cq, setCq, files, setFiles, sel, setSel, conf, live, canGen, gen, ptcl, showSettings, showExport }) {
+export function Mobile({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport }) {
   const [tab, setTab] = useState("edit");
   const ref = useRef(null);
   const filled = answers.filter(a => a.trim()).length;

@@ -5,7 +5,7 @@ import { Badges } from "../components/Badges";
 import { CodeView } from "../components/CodeView";
 import { colors, fonts, fontSizes, fontWeights, radii, shadows, animations } from "../tokens";
 
-export function Desktop({ answers, setAnswers, cq, setCq, files, setFiles, sel, setSel, conf, live, canGen, gen, ptcl, showSettings, showExport }) {
+export function Desktop({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport }) {
   const [panel, setPanel] = useState("questions");
   const ref = useRef(null);
   const filled = answers.filter(a => a.trim()).length;
