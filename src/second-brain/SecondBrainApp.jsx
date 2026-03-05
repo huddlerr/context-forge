@@ -3,6 +3,9 @@ import { colors, fonts, fontSizes, fontWeights, radii, animations } from "../tok
 import { SB_SECTIONS } from "./sbQuestions.js";
 import { genSecondBrainFiles } from "./genSecondBrainFiles.js";
 import { CodeView } from "../components/CodeView.jsx";
+import { ExportMenu } from "../components/ExportMenu.jsx";
+import { SettingsPanel } from "../components/SettingsPanel.jsx";
+import { LS } from "../data/localStorage.js";
 
 const SB_LS_KEY = "sb_answers";
 
@@ -21,7 +24,6 @@ function saveAnswers(answers) {
   } catch {}
 }
 
-// Count how many questions have been answered
 function countAnswered(answers) {
   return SB_SECTIONS.flatMap(s => s.questions).filter(q => (answers[q.id] || "").trim()).length;
 }
@@ -33,8 +35,12 @@ export default function SecondBrainApp({ onBack }) {
   const [sectionIdx, setSectionIdx] = useState(0);
   const [generated, setGenerated] = useState(false);
   const [sel, setSel] = useState("CLAUDE.md");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [integrations, setIntegrations] = useState(() => LS.get("integrations", {}));
 
   useEffect(() => { saveAnswers(answers); }, [answers]);
+  useEffect(() => { LS.set("integrations", integrations); }, [integrations]);
 
   const live = useMemo(() => genSecondBrainFiles(answers), [answers]);
   const fileList = useMemo(() => Object.keys(live), [live]);
@@ -56,12 +62,12 @@ export default function SecondBrainApp({ onBack }) {
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const headerStyle = {
-    height: 48,
+    height: 52,
     borderBottom: `1px solid ${colors.border}`,
     display: "flex",
     alignItems: "center",
     padding: "0 24px",
-    gap: 12,
+    gap: 10,
     flexShrink: 0,
     background: colors.bgPanel,
   };
@@ -100,6 +106,22 @@ export default function SecondBrainApp({ onBack }) {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: colors.bg, color: colors.text, fontFamily: fonts.primary }}>
+      {/* Export & Settings modals */}
+      <ExportMenu
+        show={exportOpen}
+        onClose={() => setExportOpen(false)}
+        files={live}
+        answers={answers}
+        integrations={integrations}
+        mode="brain"
+      />
+      <SettingsPanel
+        show={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        integrations={integrations}
+        setIntegrations={setIntegrations}
+      />
+
       {/* Header */}
       <div style={headerStyle}>
         <button
@@ -111,25 +133,43 @@ export default function SecondBrainApp({ onBack }) {
         <span style={{ fontSize: fontSizes["3xl"], fontWeight: fontWeights.bold, color: colors.text }}>
           <span style={{ color: colors.primary }}>◆</span> Second Brain
         </span>
-        <span style={{ fontSize: fontSizes.sm, color: colors.textGhost, marginLeft: 4 }}>
+        <span style={{ fontSize: fontSizes.sm, color: colors.textGhost }}>
           Personal Executive Assistant Setup
         </span>
         <div style={{ flex: 1 }} />
-        {/* Progress */}
+
+        {/* Progress bar */}
         <span style={{ fontSize: fontSizes.sm, color: colors.textGhost }}>
-          {answered}/{TOTAL_Q} answered
+          {answered}/{TOTAL_Q}
         </span>
-        <div style={{ width: 80, height: 4, background: colors.surface, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ width: 60, height: 4, background: colors.surface, borderRadius: 2, overflow: "hidden" }}>
           <div style={{ width: `${(answered / TOTAL_Q) * 100}%`, height: "100%", background: colors.primaryGradient, transition: "width 0.3s" }} />
         </div>
-        {canGen && (
+
+        {/* Integrations button */}
+        <button
+          onClick={() => setSettingsOpen(true)}
+          style={{ padding: "6px 12px", borderRadius: radii.xl, border: `1px solid ${colors.borderLight}`, background: "transparent", color: colors.textMuted, fontSize: fontSizes.base, fontWeight: fontWeights.semibold, cursor: "pointer", fontFamily: fonts.primary }}
+        >
+          ⚡ Integrations
+        </button>
+
+        {/* Export button — shown after generate, or always if canGen */}
+        {generated ? (
+          <button
+            onClick={() => setExportOpen(true)}
+            style={{ padding: "6px 16px", borderRadius: radii.xl, border: "none", background: colors.success, color: colors.text, fontSize: fontSizes.base, fontWeight: fontWeights.bold, cursor: "pointer", fontFamily: fonts.primary, boxShadow: colors.successGlow, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            ⬆ Export Files
+          </button>
+        ) : canGen ? (
           <button
             onClick={handleGenerate}
             style={{ padding: "6px 16px", borderRadius: radii.xl, border: "none", background: colors.primaryGradient, color: colors.text, fontSize: fontSizes.base, fontWeight: fontWeights.bold, cursor: "pointer", fontFamily: fonts.primary, boxShadow: colors.primaryGlow }}
           >
             ◆ Generate Files
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Body */}
@@ -223,7 +263,7 @@ export default function SecondBrainApp({ onBack }) {
 
               {/* Questions */}
               <div style={{ flex: 1, overflow: "auto", padding: "20px 32px" }}>
-                {section.questions.map((q, qi) => (
+                {section.questions.map((q) => (
                   <div key={q.id} style={{ marginBottom: 20 }}>
                     <label style={{ display: "block", fontSize: fontSizes.xl, fontWeight: fontWeights.semibold, color: colors.textSecondary, marginBottom: 6 }}>
                       {q.label}
@@ -235,7 +275,7 @@ export default function SecondBrainApp({ onBack }) {
                       value={answers[q.id] || ""}
                       onChange={e => setAnswer(q.id, e.target.value)}
                       placeholder={q.ph}
-                      rows={q.id === "products" || q.id === "focuses" || q.id === "projects" || q.id === "recurring" || q.id === "keypeople" ? 4 : 2}
+                      rows={["products", "focuses", "projects", "recurring", "keypeople"].includes(q.id) ? 4 : 2}
                       style={{
                         width: "100%",
                         borderRadius: radii.md,
@@ -300,6 +340,12 @@ export default function SecondBrainApp({ onBack }) {
                 <span style={{ fontSize: fontSizes.sm, color: colors.successLight, fontWeight: fontWeights.bold, background: colors.successBg, padding: "2px 8px", borderRadius: radii.sm }}>✓ GENERATED</span>
                 <span style={{ fontSize: fontSizes.base, color: colors.textMuted, fontFamily: fonts.mono }}>{sel}</span>
                 <div style={{ flex: 1 }} />
+                <button
+                  onClick={() => setExportOpen(true)}
+                  style={{ padding: "5px 14px", borderRadius: radii.xl, border: "none", background: colors.success, color: colors.text, fontSize: fontSizes.base, fontWeight: fontWeights.bold, cursor: "pointer", fontFamily: fonts.primary, display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  ⬆ Export
+                </button>
                 <button
                   onClick={() => setGenerated(false)}
                   style={{ padding: "4px 10px", borderRadius: radii.md, border: `1px solid ${colors.borderLight}`, background: "transparent", color: colors.textMuted, fontSize: fontSizes.base, cursor: "pointer", fontFamily: fonts.primary }}

@@ -1,4 +1,6 @@
 export { exportToAirtable } from "./airtable";
 export { exportToSheets } from "./sheets";
-export { downloadZip } from "./download";
+export { exportBrainToAirtable } from "./airtableBrain";
+export { exportBrainToSheets } from "./sheetsBrain";
+export { downloadZip, downloadTextBundle } from "./download";
 export { copyAll } from "./clipboard";
