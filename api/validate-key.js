@@ -3,91 +3,56 @@
  * Body: { key: string }
  * Returns: { valid: boolean, tier?: string, message?: string }
  *
- * Validates an access key against Vercel KV.
- * Keys are stored as: key:<sha256(key)> → JSON { tier, createdAt, label?, uses }
- * Uses Web Crypto API (Edge-compatible, no Node crypto module needed).
+ * Validates an access key against Redis.
+ * Keys are stored as: key:<sha256(key)> → JSON string { tier, createdAt, label, uses }
  */
 
-import { kv } from "@vercel/kv";
+import { createHash } from "crypto";
+import { getRedis } from "./_redis.js";
 
-export const config = { runtime: "edge" };
-
-async function sha256hex(str) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(str)
-  );
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-export default async function handler(req) {
-  const origin = req.headers.get("origin") || "";
+export default async function handler(req, res) {
+  // CORS
   const allowedOrigins = [
     "https://context-forge-eta.vercel.app",
     "http://localhost:5173",
     "http://localhost:4173",
   ];
+  const origin = req.headers.origin || "";
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  res.setHeader("Access-Control-Allow-Origin", corsOrigin);
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": corsOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Content-Type": "application/json",
-  };
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") return res.status(405).json({ valid: false, message: "Method not allowed" });
 
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ valid: false, message: "Method not allowed" }), {
-      status: 405, headers: corsHeaders,
-    });
-  }
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ valid: false, message: "Invalid JSON" }), {
-      status: 400, headers: corsHeaders,
-    });
-  }
-
-  const { key } = body || {};
+  const { key } = req.body || {};
   if (!key || typeof key !== "string" || key.trim().length < 4) {
-    return new Response(JSON.stringify({ valid: false, message: "Key is required" }), {
-      status: 400, headers: corsHeaders,
-    });
+    return res.status(400).json({ valid: false, message: "Key is required" });
   }
 
-  const hash = await sha256hex(key.trim().toLowerCase());
+  const hash = createHash("sha256").update(key.trim().toLowerCase()).digest("hex");
   const kvKey = `key:${hash}`;
 
   let record;
   try {
-    record = await kv.get(kvKey);
+    const redis = getRedis();
+    const raw = await redis.get(kvKey);
+    record = raw ? JSON.parse(raw) : null;
   } catch (err) {
-    console.error("KV error:", err);
-    return new Response(JSON.stringify({ valid: false, message: "Service unavailable" }), {
-      status: 503, headers: corsHeaders,
-    });
+    console.error("Redis error:", err);
+    return res.status(503).json({ valid: false, message: "Service unavailable" });
   }
 
   if (!record) {
-    return new Response(JSON.stringify({ valid: false, message: "Invalid key" }), {
-      status: 200, headers: corsHeaders,
-    });
+    return res.status(200).json({ valid: false, message: "Invalid key" });
   }
 
   // Increment usage counter (fire-and-forget)
-  kv.set(kvKey, { ...record, uses: (record.uses || 0) + 1, lastUsed: new Date().toISOString() }).catch(() => {});
+  try {
+    const redis = getRedis();
+    redis.set(kvKey, JSON.stringify({ ...record, uses: (record.uses || 0) + 1, lastUsed: new Date().toISOString() })).catch(() => {});
+  } catch {}
 
-  return new Response(
-    JSON.stringify({ valid: true, tier: record.tier || "pro", label: record.label || null }),
-    { status: 200, headers: corsHeaders }
-  );
+  return res.status(200).json({ valid: true, tier: record.tier || "pro", label: record.label || null });
 }

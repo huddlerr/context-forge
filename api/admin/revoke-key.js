@@ -5,51 +5,29 @@
  * Returns: { success: boolean }
  */
 
-import { kv } from "@vercel/kv";
+import { createHash } from "crypto";
+import { getRedis } from "../_redis.js";
 
-export const config = { runtime: "edge" };
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-async function sha256hex(str) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(str)
-  );
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "DELETE") return res.status(405).json({ success: false, message: "Method not allowed" });
 
-export default async function handler(req) {
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json",
-  };
-
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "DELETE") {
-    return new Response(JSON.stringify({ success: false, message: "Method not allowed" }), { status: 405, headers: corsHeaders });
-  }
-
-  const authHeader = req.headers.get("authorization") || "";
+  const authHeader = req.headers.authorization || "";
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || authHeader !== `Bearer ${adminSecret}`) {
-    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  let body;
-  try { body = await req.json(); } catch {
-    return new Response(JSON.stringify({ success: false, message: "Invalid JSON" }), { status: 400, headers: corsHeaders });
-  }
+  const { key } = req.body || {};
+  if (!key) return res.status(400).json({ success: false, message: "key is required" });
 
-  const { key } = body || {};
-  if (!key) {
-    return new Response(JSON.stringify({ success: false, message: "key is required" }), { status: 400, headers: corsHeaders });
-  }
+  const hash = createHash("sha256").update(key.trim().toLowerCase()).digest("hex");
+  const redis = getRedis();
+  await redis.del(`key:${hash}`);
 
-  const hash = await sha256hex(key.trim().toLowerCase());
-  await kv.del(`key:${hash}`);
-
-  return new Response(JSON.stringify({ success: true, hash }), { status: 200, headers: corsHeaders });
+  return res.status(200).json({ success: true, hash });
 }

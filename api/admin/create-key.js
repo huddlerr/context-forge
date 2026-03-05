@@ -5,58 +5,38 @@
  * Returns: { success: boolean, hash?: string, message?: string }
  */
 
-import { kv } from "@vercel/kv";
+import { createHash } from "crypto";
+import { getRedis } from "../_redis.js";
 
-export const config = { runtime: "edge" };
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-async function sha256hex(str) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(str)
-  );
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") return res.status(405).json({ success: false, message: "Method not allowed" });
 
-export default async function handler(req) {
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json",
-  };
-
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ success: false, message: "Method not allowed" }), { status: 405, headers: corsHeaders });
-  }
-
-  const authHeader = req.headers.get("authorization") || "";
+  const authHeader = req.headers.authorization || "";
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || authHeader !== `Bearer ${adminSecret}`) {
-    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  let body;
-  try { body = await req.json(); } catch {
-    return new Response(JSON.stringify({ success: false, message: "Invalid JSON" }), { status: 400, headers: corsHeaders });
-  }
-
-  const { key, tier = "pro", label = "" } = body || {};
+  const { key, tier = "pro", label = "" } = req.body || {};
   if (!key || typeof key !== "string" || key.trim().length < 4) {
-    return new Response(JSON.stringify({ success: false, message: "key must be at least 4 chars" }), { status: 400, headers: corsHeaders });
+    return res.status(400).json({ success: false, message: "key must be at least 4 chars" });
   }
 
-  const hash = await sha256hex(key.trim().toLowerCase());
+  const hash = createHash("sha256").update(key.trim().toLowerCase()).digest("hex");
   const kvKey = `key:${hash}`;
 
-  const existing = await kv.get(kvKey);
+  const redis = getRedis();
+  const existing = await redis.get(kvKey);
   if (existing) {
-    return new Response(JSON.stringify({ success: false, message: "Key already exists", hash }), { status: 409, headers: corsHeaders });
+    return res.status(409).json({ success: false, message: "Key already exists", hash });
   }
 
-  await kv.set(kvKey, { tier, label, createdAt: new Date().toISOString(), uses: 0 });
+  await redis.set(kvKey, JSON.stringify({ tier, label, createdAt: new Date().toISOString(), uses: 0 }));
 
-  return new Response(JSON.stringify({ success: true, hash, tier, label }), { status: 201, headers: corsHeaders });
+  return res.status(201).json({ success: true, hash, tier, label });
 }
