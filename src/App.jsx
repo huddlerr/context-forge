@@ -3,7 +3,8 @@ import { globalStyles, colors, fonts, fontSizes, fontWeights, radii } from "./to
 import { LS } from "./data/localStorage";
 import { genFiles, calcConf } from "./engines";
 import { useIsMobile } from "./hooks/useIsMobile";
-import { Particles, SettingsPanel, ExportMenu } from "./components";
+import { useAccessKey } from "./hooks/useAccessKey";
+import { Particles, SettingsPanel, ExportMenu, UnlockModal } from "./components";
 import { Mobile } from "./layouts/Mobile";
 import { Desktop } from "./layouts/Desktop";
 import { SecondBrainApp } from "./second-brain/index.js";
@@ -110,6 +111,10 @@ export default function App() {
   const isMobile = useIsMobile();
   const [mode, setMode] = useState(() => LS.get("mode", null));
 
+  // Access key (shared across both modes)
+  const { isUnlocked, tier, isChecking, error: keyError, validate, lock } = useAccessKey();
+  const [unlockOpen, setUnlockOpen] = useState(false);
+
   // Project Scaffold state
   const [cq, setCq] = useState(0);
   const [answers, setAnswers] = useState(() => LS.get("answers", Array(10).fill("")));
@@ -141,6 +146,13 @@ export default function App() {
     conf, live, canGen, gen, ptcl,
     showSettings: () => setSettingsOpen(true),
     showExport: () => setExportOpen(true),
+    onBack: () => setMode(null),
+  };
+
+  // Handle key validation from modal
+  const handleValidate = async (key) => {
+    const ok = await validate(key);
+    if (ok) setUnlockOpen(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -157,7 +169,20 @@ export default function App() {
     return (
       <>
         <style>{globalStyles}</style>
-        <SecondBrainApp onBack={() => setMode(null)} />
+        <UnlockModal
+          show={unlockOpen}
+          onClose={() => setUnlockOpen(false)}
+          onValidate={handleValidate}
+          isChecking={isChecking}
+          error={keyError}
+        />
+        <SecondBrainApp
+          onBack={() => setMode(null)}
+          isUnlocked={isUnlocked}
+          onUnlock={() => setUnlockOpen(true)}
+          onLock={lock}
+          tier={tier}
+        />
       </>
     );
   }
@@ -167,8 +192,33 @@ export default function App() {
     <>
       <style>{globalStyles}</style>
       <Particles on={ptcl} />
-      <SettingsPanel show={settingsOpen} onClose={() => setSettingsOpen(false)} integrations={integrations} setIntegrations={setIntegrations} />
-      <ExportMenu show={exportOpen} onClose={() => setExportOpen(false)} files={files || live} answers={answers} integrations={integrations} />
+      <UnlockModal
+        show={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        onValidate={handleValidate}
+        isChecking={isChecking}
+        error={keyError}
+      />
+      <SettingsPanel
+        show={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        integrations={integrations}
+        setIntegrations={setIntegrations}
+        isUnlocked={isUnlocked}
+        onUnlock={() => { setSettingsOpen(false); setUnlockOpen(true); }}
+        onLock={lock}
+        tier={tier}
+      />
+      <ExportMenu
+        show={exportOpen}
+        onClose={() => setExportOpen(false)}
+        files={files || live}
+        answers={answers}
+        integrations={integrations}
+        mode="forge"
+        isUnlocked={isUnlocked}
+        onUnlock={() => { setExportOpen(false); setUnlockOpen(true); }}
+      />
       {isMobile ? <Mobile {...forgeProps} /> : <Desktop {...forgeProps} />}
     </>
   );

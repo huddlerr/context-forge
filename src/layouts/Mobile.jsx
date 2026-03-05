@@ -6,7 +6,7 @@ import { Badges } from "../components/Badges";
 import { CodeView } from "../components/CodeView";
 import { colors, fonts, fontSizes, fontWeights, radii, animations } from "../tokens";
 
-export function Mobile({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport }) {
+export function Mobile({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport, onBack }) {
   const [tab, setTab] = useState("edit");
   const ref = useRef(null);
   const filled = answers.filter(a => a.trim()).length;
@@ -19,6 +19,9 @@ export function Mobile({ answers, setAnswers, cq, setCq, files, setFiles: _setFi
       {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {onBack && (
+            <button onClick={onBack} style={{ padding: "3px 8px", borderRadius: radii.md, border: `1px solid ${colors.borderLight}`, background: "transparent", color: colors.textMuted, fontSize: fontSizes.sm, cursor: "pointer", fontFamily: fonts.primary, flexShrink: 0 }}>←</button>
+          )}
           <div style={{ width: 30, height: 30, borderRadius: radii.xl, background: colors.primaryGradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fontSizes.xl, fontWeight: fontWeights.extrabold }}>✦</div>
           <div>
             <h1 style={{ fontSize: 15, fontWeight: fontWeights.bold, margin: 0 }}>Context Forge</h1>

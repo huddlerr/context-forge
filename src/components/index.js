@@ -4,3 +4,4 @@ export { CodeView } from "./CodeView";
 export { Particles } from "./Particles";
 export { SettingsPanel } from "./SettingsPanel";
 export { ExportMenu } from "./ExportMenu";
+export { UnlockModal } from "./UnlockModal";

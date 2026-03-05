@@ -5,7 +5,7 @@ import { Badges } from "../components/Badges";
 import { CodeView } from "../components/CodeView";
 import { colors, fonts, fontSizes, fontWeights, radii, shadows, animations } from "../tokens";
 
-export function Desktop({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport }) {
+export function Desktop({ answers, setAnswers, cq, setCq, files, setFiles: _setFiles, sel, setSel, conf, live, canGen, gen, ptcl: _ptcl, showSettings, showExport, onBack }) {
   const [panel, setPanel] = useState("questions");
   const ref = useRef(null);
   const filled = answers.filter(a => a.trim()).length;
@@ -27,6 +27,9 @@ export function Desktop({ answers, setAnswers, cq, setCq, files, setFiles: _setF
       {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {onBack && (
+            <button onClick={onBack} style={{ padding: "4px 10px", borderRadius: radii.md, border: `1px solid ${colors.borderLight}`, background: "transparent", color: colors.textMuted, fontSize: fontSizes.base, cursor: "pointer", fontFamily: fonts.primary, flexShrink: 0 }}>← Back</button>
+          )}
           <div style={{ width: 36, height: 36, borderRadius: radii["2xl"], background: colors.primaryGradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: fontWeights.extrabold, boxShadow: shadows.glow }}>✦</div>
           <div>
             <h1 style={{ fontSize: fontSizes["4xl"], fontWeight: fontWeights.bold, margin: 0 }}>Context Forge</h1>

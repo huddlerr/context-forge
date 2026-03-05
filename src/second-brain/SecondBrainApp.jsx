@@ -30,7 +30,7 @@ function countAnswered(answers) {
 
 const TOTAL_Q = SB_SECTIONS.flatMap(s => s.questions).length;
 
-export default function SecondBrainApp({ onBack }) {
+export default function SecondBrainApp({ onBack, isUnlocked = false, onUnlock, onLock, tier }) {
   const [answers, setAnswers] = useState(() => loadAnswers());
   const [sectionIdx, setSectionIdx] = useState(0);
   const [generated, setGenerated] = useState(false);
@@ -114,12 +114,18 @@ export default function SecondBrainApp({ onBack }) {
         answers={answers}
         integrations={integrations}
         mode="brain"
+        isUnlocked={isUnlocked}
+        onUnlock={onUnlock}
       />
       <SettingsPanel
         show={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         integrations={integrations}
         setIntegrations={setIntegrations}
+        isUnlocked={isUnlocked}
+        onUnlock={() => { setSettingsOpen(false); if (onUnlock) onUnlock(); }}
+        onLock={onLock}
+        tier={tier}
       />
 
       {/* Header */}
